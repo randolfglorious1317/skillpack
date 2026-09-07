@@ -21,5 +21,5 @@ inventory.source = 'bundled';
 await writeFile(out, JSON.stringify(inventory, null, 2) + '\n', 'utf8');
 console.log(`Wrote ${out}`);
 console.log(
-  `Counts: SP=${inventory.packs.superpowers.skills.length} AS=${inventory.packs.agentSkills.skills.length} MP=${inventory.packs.mattPocock.skills.length}`,
+  `Counts: SP=${inventory.packs.superpowers.skills.length} AS=${inventory.packs.agentSkills.skills.length} MP=${inventory.packs.mattPocock.skills.length} PS=${inventory.packs.pstack.skills.length}`,
 );

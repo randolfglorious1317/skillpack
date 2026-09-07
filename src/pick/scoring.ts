@@ -3,29 +3,36 @@ import {
   QUESTIONS,
   QUESTIONS_BY_ID,
   TIE_BREAK_ORDER,
+  type OutcomeId,
   type QuestionId,
 } from './scoring-rules.js';
 
 export type Answers = Partial<Record<QuestionId, string>>;
 
 export interface ScoreBreakdown {
-  scores: Record<PackId, number>;
-  winner: PackId;
-  tied: PackId[];
+  scores: Record<OutcomeId, number>;
+  winner: OutcomeId;
+  tied: OutcomeId[];
   rationaleDrivers: Array<{
     questionId: QuestionId;
     optionId: string;
     optionLabel: string;
-    contributed: PackId[];
+    contributed: OutcomeId[];
   }>;
 }
 
-export function scoreAnswers(answers: Answers): ScoreBreakdown {
-  const scores: Record<PackId, number> = {
+function emptyScores(): Record<OutcomeId, number> {
+  return {
     superpowers: 0,
     agentSkills: 0,
     mattPocock: 0,
+    pstack: 0,
+    none: 0,
   };
+}
+
+export function scoreAnswers(answers: Answers): ScoreBreakdown {
+  const scores = emptyScores();
   const rationaleDrivers: ScoreBreakdown['rationaleDrivers'] = [];
 
   for (const question of QUESTIONS) {
@@ -37,12 +44,12 @@ export function scoreAnswers(answers: Answers): ScoreBreakdown {
         `Unknown option "${optionId}" for question "${question.id}"`,
       );
     }
-    const contributed: PackId[] = [];
-    for (const [packId, pts] of Object.entries(option.scores) as Array<
-      [PackId, number]
+    const contributed: OutcomeId[] = [];
+    for (const [outcomeId, pts] of Object.entries(option.scores) as Array<
+      [OutcomeId, number]
     >) {
-      scores[packId] += pts;
-      contributed.push(packId);
+      scores[outcomeId] += pts;
+      contributed.push(outcomeId);
     }
     rationaleDrivers.push({
       questionId: question.id,
@@ -53,16 +60,24 @@ export function scoreAnswers(answers: Answers): ScoreBreakdown {
   }
 
   const max = Math.max(...Object.values(scores));
-  const tied = (Object.keys(scores) as PackId[]).filter(
+  const tied = (Object.keys(scores) as OutcomeId[]).filter(
     (id) => scores[id] === max,
   );
 
-  let winner: PackId;
+  let winner: OutcomeId;
   if (tied.length === 1) {
     winner = tied[0]!;
+  } else if (tied.includes('none') && tied.length === 1) {
+    winner = 'none';
   } else {
-    winner =
-      TIE_BREAK_ORDER.find((id) => tied.includes(id)) ?? tied[0]!;
+    // Prefer real packs over none on ties; then TIE_BREAK_ORDER
+    const packTied = tied.filter((t): t is PackId => t !== 'none');
+    if (packTied.length === 0) {
+      winner = 'none';
+    } else {
+      winner =
+        TIE_BREAK_ORDER.find((id) => packTied.includes(id)) ?? packTied[0]!;
+    }
   }
 
   return { scores, winner, tied, rationaleDrivers };

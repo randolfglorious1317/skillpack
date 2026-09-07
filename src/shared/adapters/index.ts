@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   MATTpocock_INCLUDED_CATEGORIES,
   type PackConfig,
+  type PackId,
 } from '../../config/packs.js';
 import type { CommandEntry, PackSnapshot, SkillEntry } from '../inventory.js';
 import {
@@ -211,6 +212,106 @@ export async function parseMattPocock(
     repoUrl: config.repoUrl,
     refUsed,
     fetchedAt,
+    skills,
+    commands,
+    hasSessionHook: false,
+    routerStyle: 'none',
+  };
+}
+
+/**
+ * pstack (cursor/plugins/pstack): skills/<name>/SKILL.md
+ * User-invoked engineering helpers; no session router.
+ */
+export async function parsePstack(
+  rootDir: string,
+  config: PackConfig,
+  refUsed: string,
+  fetchedAt: string,
+): Promise<PackSnapshot> {
+  const skillsDir = join(rootDir, 'skills');
+  if (!(await pathExists(skillsDir))) {
+    throw new Error(`pstack layout drift: expected skills/ under ${rootDir}`);
+  }
+
+  const skillFiles = await walkFiles(
+    skillsDir,
+    (name) => name.toUpperCase() === 'SKILL.MD',
+  );
+
+  const skills: SkillEntry[] = [];
+  for (const file of skillFiles) {
+    const entry = await readSkillFile(file, rootDir);
+    if (entry) skills.push(entry);
+  }
+
+  if (skills.length === 0) {
+    throw new Error(
+      'pstack parse health check failed: 0 skills found in skills/',
+    );
+  }
+
+  const commands: CommandEntry[] = skills.map((s) => ({
+    name: s.name,
+    slashCommand: `/${s.name}`,
+    filePath: s.filePath,
+  }));
+
+  return {
+    packId: 'pstack',
+    repoUrl: config.repoUrl,
+    refUsed,
+    fetchedAt,
+    skills,
+    commands,
+    hasSessionHook: false,
+    routerStyle: 'none',
+  };
+}
+
+/**
+ * Generic walker: any repo root containing SKILL.md files.
+ * Used for `map fetch --repo` and as a fallback layout.
+ */
+export async function parseGenericSkills(
+  rootDir: string,
+  meta: {
+    packId: PackId | string;
+    repoUrl: string;
+    refUsed: string;
+    fetchedAt: string;
+  },
+): Promise<PackSnapshot> {
+  const skillFiles = await walkFiles(
+    rootDir,
+    (name) => name.toUpperCase() === 'SKILL.MD',
+  );
+
+  const skills: SkillEntry[] = [];
+  for (const file of skillFiles) {
+    const entry = await readSkillFile(file, rootDir);
+    if (entry) skills.push(entry);
+  }
+
+  if (skills.length === 0) {
+    throw new Error(
+      `Generic parse failed: 0 SKILL.md files under ${rootDir}`,
+    );
+  }
+
+  const commands: CommandEntry[] = skills.map((s) => ({
+    name: s.name,
+    slashCommand: `/${s.name}`,
+    filePath: s.filePath,
+  }));
+
+  const packId = (meta.packId as PackId) || 'mattPocock';
+
+  return {
+    packId,
+    repoUrl: meta.repoUrl,
+    refUsed: meta.refUsed,
+    fetchedAt: meta.fetchedAt,
     skills,
     commands,
     hasSessionHook: false,

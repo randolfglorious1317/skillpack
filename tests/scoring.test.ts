@@ -10,6 +10,7 @@ const barrelThroughSolo: Answers = {
   platform: 'multi',
   ownership: 'owns',
   tokenBudget: 'fine',
+  taskScope: 'epic',
 };
 
 const checkpointTeam: Answers = {
@@ -19,6 +20,7 @@ const checkpointTeam: Answers = {
   platform: 'multi',
   ownership: 'owns',
   tokenBudget: 'tight',
+  taskScope: 'epic',
 };
 
 const borrowPieces: Answers = {
@@ -28,6 +30,17 @@ const borrowPieces: Answers = {
   platform: 'claude-only',
   ownership: 'borrow',
   tokenBudget: 'tight',
+  taskScope: 'mixed',
+};
+
+const noneSmall: Answers = {
+  autonomy: 'mixed',
+  team: 'solo',
+  pain: 'misunderstands',
+  platform: 'multi',
+  ownership: 'borrow',
+  tokenBudget: 'tight',
+  taskScope: 'small',
 };
 
 describe('scoring', () => {
@@ -46,8 +59,13 @@ describe('scoring', () => {
     expect(result.winner).toBe('mattPocock');
   });
 
+  it('recommends none for small-scope lean token budgets', () => {
+    const result = scoreAnswers(noneSmall);
+    expect(result.winner).toBe('none');
+    expect(result.scores.none).toBeGreaterThan(0);
+  });
+
   it('breaks ties deterministically via TIE_BREAK_ORDER', () => {
-    // Force a synthetic tie by only answering platform:multi (2+2)
     const tied = scoreAnswers({
       platform: 'multi',
     });
@@ -58,7 +76,6 @@ describe('scoring', () => {
   });
 
   it('changing a weight in scoring-rules flips the recommended framework', async () => {
-    // Import the live question table and temporarily bump Agent Skills weight
     const { QUESTIONS } = await import('../src/pick/scoring-rules.js');
     const answers: Answers = {
       autonomy: 'barrel',
@@ -67,6 +84,7 @@ describe('scoring', () => {
       platform: 'multi',
       ownership: 'owns',
       tokenBudget: 'fine',
+      taskScope: 'epic',
     };
 
     const before = scoreAnswers(answers);
@@ -76,7 +94,7 @@ describe('scoring', () => {
     const large = teamQ?.options.find((o) => o.id === 'large');
     expect(large).toBeDefined();
     const original = large!.scores.agentSkills ?? 0;
-    large!.scores.agentSkills = 20; // dramatic weight flip
+    large!.scores.agentSkills = 20;
 
     try {
       const after = scoreAnswers(answers);

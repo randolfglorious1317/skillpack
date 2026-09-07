@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { diffToJson } from '../src/map/diff.js';
 import { renderHtml } from '../src/map/html.js';
+import { buildTokensReport } from '../src/map/tokens.js';
 import { buildRecommendation } from '../src/pick/output.js';
 import { computeDiff } from '../src/shared/diff.js';
 import { parseInventory } from '../src/shared/inventory.js';
@@ -24,6 +25,8 @@ describe('acceptance', () => {
     expect(inv.packs.superpowers.skills.length).toBeGreaterThan(0);
     expect(inv.packs.agentSkills.skills.length).toBeGreaterThan(0);
     expect(inv.packs.mattPocock.skills.length).toBeGreaterThan(0);
+    expect(inv.packs.pstack.skills.length).toBeGreaterThan(0);
+    expect(inv.packs.superpowers.skills[0]?.alwaysTokens).toBeGreaterThan(0);
   });
 
   it('map diff --json shape has unique, overlapping, collisions non-empty', async () => {
@@ -46,10 +49,21 @@ describe('acceptance', () => {
     const diff = computeDiff(inv);
     const html = renderHtml(inv, diff, 'using bundled snapshot');
     expect(html).toContain('<!DOCTYPE html>');
-    // No external stylesheets/scripts/fonts
+    expect(html).toMatch(/context tax/i);
     expect(html).not.toMatch(/<link[^>]+href=["']https?:\/\//i);
     expect(html).not.toMatch(/<script[^>]+src=["']https?:\/\//i);
     expect(html).not.toMatch(/url\(\s*['"]?https?:\/\//i);
+  });
+
+  it('map tokens reports context tax for all packs', async () => {
+    const inv = parseInventory(
+      JSON.parse(
+        await readFile(join(repoRoot, 'data', 'inventory.json'), 'utf8'),
+      ),
+    );
+    const report = buildTokensReport(inv);
+    expect(report.packs).toHaveLength(4);
+    expect(report.topSkills.length).toBeGreaterThan(0);
   });
 
   it('pick --answers produces deterministic Superpowers recommendation', async () => {
@@ -71,7 +85,31 @@ describe('acceptance', () => {
     );
     expect(rec.framework).toBe('superpowers');
     expect(rec.cherryPicks.length).toBeGreaterThan(0);
-    expect(rec.installPrimary.claudeCode).toContain('superpowers');
+    expect(rec.installPrimary?.claudeCode).toContain('superpowers');
     expect(rec.rationale.length).toBeGreaterThan(20);
+    expect(rec.cherryPicks[0]?.alwaysTokens).toBeGreaterThan(0);
+  });
+
+  it('pick none outcome for small-scope answers', async () => {
+    const answers = JSON.parse(
+      await readFile(
+        join(repoRoot, 'examples', 'none-small-scope.json'),
+        'utf8',
+      ),
+    );
+    const inv = parseInventory(
+      JSON.parse(
+        await readFile(join(repoRoot, 'data', 'inventory.json'), 'utf8'),
+      ),
+    );
+    const rec = buildRecommendation(
+      answers,
+      { ...inv, source: 'bundled' },
+      'using bundled snapshot',
+    );
+    expect(rec.framework).toBe('none');
+    expect(rec.skipRouters).toBe(true);
+    expect(rec.installPrimary).toBeNull();
+    expect(rec.cherryPicks.length).toBeGreaterThan(0);
   });
 });

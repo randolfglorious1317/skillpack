@@ -4,5 +4,6 @@
   "pain": "skips-tests",
   "platform": "multi",
   "ownership": "owns",
-  "tokenBudget": "fine"
+  "tokenBudget": "fine",
+  "taskScope": "epic"
 }

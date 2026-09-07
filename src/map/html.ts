@@ -6,6 +6,7 @@ import { computeDiff, type DiffResult } from '../shared/diff.js';
 import { loadInventory } from '../shared/loader.js';
 import { normalizeName } from '../shared/similarity.js';
 import type { SkillPackInventory } from '../shared/inventory.js';
+import { buildTokensReport } from './tokens.js';
 
 function escapeHtml(s: string): string {
   return s
@@ -43,34 +44,35 @@ function classifySkill(
 }
 
 function vennSvg(diff: DiffResult, inventory: SkillPackInventory): string {
-  const counts = {
-    superpowers: inventory.packs.superpowers.skills.length,
-    agentSkills: inventory.packs.agentSkills.skills.length,
-    mattPocock: inventory.packs.mattPocock.skills.length,
-  };
-  const uniqueCounts = {
-    superpowers: diff.unique.filter((u) => u.packId === 'superpowers').length,
-    agentSkills: diff.unique.filter((u) => u.packId === 'agentSkills').length,
-    mattPocock: diff.unique.filter((u) => u.packId === 'mattPocock').length,
-  };
+  const uniqueCounts = Object.fromEntries(
+    PACK_IDS.map((id) => [
+      id,
+      diff.unique.filter((u) => u.packId === id).length,
+    ]),
+  ) as Record<PackId, number>;
   const shared = diff.overlapping.length;
   const collisions = diff.conflicts.filter((c) => c.severity === 'red').length;
+  const tokens = buildTokensReport(inventory);
 
   return `
-<svg viewBox="0 0 480 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Skill pack Venn summary">
-  <circle cx="160" cy="100" r="70" fill="#16a34a" fill-opacity="0.25" stroke="#16a34a" stroke-width="2"/>
-  <circle cx="240" cy="100" r="70" fill="#ca8a04" fill-opacity="0.25" stroke="#ca8a04" stroke-width="2"/>
-  <circle cx="200" cy="150" r="70" fill="#2563eb" fill-opacity="0.25" stroke="#2563eb" stroke-width="2"/>
-  <text x="130" y="85" font-family="system-ui,sans-serif" font-size="12" fill="#14532d">SP unique</text>
-  <text x="130" y="102" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#14532d">${uniqueCounts.superpowers}</text>
-  <text x="250" y="85" font-family="system-ui,sans-serif" font-size="12" fill="#713f12">AS unique</text>
-  <text x="250" y="102" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#713f12">${uniqueCounts.agentSkills}</text>
-  <text x="175" y="175" font-family="system-ui,sans-serif" font-size="12" fill="#1e3a8a">MP unique</text>
-  <text x="185" y="192" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#1e3a8a">${uniqueCounts.mattPocock}</text>
-  <text x="330" y="60" font-family="system-ui,sans-serif" font-size="13" fill="#334155">Totals</text>
-  <text x="330" y="82" font-family="system-ui,sans-serif" font-size="12" fill="#475569">SP: ${counts.superpowers} · AS: ${counts.agentSkills} · MP: ${counts.mattPocock}</text>
-  <text x="330" y="104" font-family="system-ui,sans-serif" font-size="12" fill="#ca8a04">Overlaps: ${shared}</text>
-  <text x="330" y="126" font-family="system-ui,sans-serif" font-size="12" fill="#dc2626">Conflicts: ${collisions}</text>
+<svg viewBox="0 0 520 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Skill pack summary">
+  <circle cx="140" cy="100" r="60" fill="#16a34a" fill-opacity="0.25" stroke="#16a34a" stroke-width="2"/>
+  <circle cx="220" cy="100" r="60" fill="#ca8a04" fill-opacity="0.25" stroke="#ca8a04" stroke-width="2"/>
+  <circle cx="180" cy="155" r="60" fill="#2563eb" fill-opacity="0.25" stroke="#2563eb" stroke-width="2"/>
+  <circle cx="280" cy="155" r="50" fill="#a855f7" fill-opacity="0.2" stroke="#a855f7" stroke-width="2"/>
+  <text x="110" y="90" font-family="system-ui,sans-serif" font-size="11" fill="#14532d">SP ${uniqueCounts.superpowers}</text>
+  <text x="230" y="90" font-family="system-ui,sans-serif" font-size="11" fill="#713f12">AS ${uniqueCounts.agentSkills}</text>
+  <text x="155" y="175" font-family="system-ui,sans-serif" font-size="11" fill="#1e3a8a">MP ${uniqueCounts.mattPocock}</text>
+  <text x="265" y="170" font-family="system-ui,sans-serif" font-size="11" fill="#6b21a8">PS ${uniqueCounts.pstack}</text>
+  <text x="360" y="50" font-family="system-ui,sans-serif" font-size="13" fill="#334155">Context tax</text>
+  ${tokens.packs
+    .map(
+      (p, i) =>
+        `<text x="360" y="${72 + i * 22}" font-family="system-ui,sans-serif" font-size="11" fill="#475569">${escapeHtml(p.displayName)}: ~${p.contextTax} tok</text>`,
+    )
+    .join('\n')}
+  <text x="360" y="190" font-family="system-ui,sans-serif" font-size="11" fill="#ca8a04">Overlaps: ${shared}</text>
+  <text x="360" y="210" font-family="system-ui,sans-serif" font-size="11" fill="#dc2626">Conflicts: ${collisions}</text>
 </svg>`;
 }
 
@@ -81,16 +83,17 @@ export function renderHtml(
 ): string {
   const columns = PACK_IDS.map((packId) => {
     const snap = inventory.packs[packId];
+    const contextTax = snap.skills.reduce((n, s) => n + s.alwaysTokens, 0);
     const items = snap.skills
       .map((skill) => {
         const cls = classifySkill(packId, skill.name, diff);
-        return `<li class="${cls}"><strong>${escapeHtml(skill.name)}</strong><span>${escapeHtml(skill.description.slice(0, 120))}</span></li>`;
+        return `<li class="${cls}"><strong>${escapeHtml(skill.name)}</strong><span>${escapeHtml(skill.description.slice(0, 100))} · ~${skill.alwaysTokens}+${skill.bodyTokens} tok · ${escapeHtml(skill.phase)} · ${escapeHtml(skill.processIntensity)}</span></li>`;
       })
       .join('\n');
     return `
       <section class="pack">
         <h2>${escapeHtml(PACKS[packId].displayName)}</h2>
-        <p class="meta">${snap.skills.length} skills · ref ${escapeHtml(snap.refUsed.slice(0, 7))} · ${escapeHtml(snap.fetchedAt)}</p>
+        <p class="meta">${snap.skills.length} skills · ~${contextTax} context tax · ref ${escapeHtml(snap.refUsed.slice(0, 7))} · ${escapeHtml(snap.fetchedAt)}</p>
         <ul>${items}</ul>
       </section>`;
   }).join('\n');
@@ -122,7 +125,7 @@ export function renderHtml(
   }
   h1 { margin: 0 0 0.25rem; font-size: 1.75rem; letter-spacing: -0.02em; }
   .sub { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-  .venn { background: var(--panel); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; max-width: 520px; }
+  .venn { background: var(--panel); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; max-width: 560px; }
   .legend { display: flex; gap: 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
   .legend span::before {
     content: "";
@@ -137,10 +140,13 @@ export function renderHtml(
   .legend .c::before { background: var(--conflict); }
   .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
   }
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 700px) {
     .grid { grid-template-columns: 1fr; }
   }
   .pack {
@@ -188,6 +194,7 @@ export function renderHtml(
     refs:
     ${PACK_IDS.map((id) => `${PACKS[id].displayName}=${escapeHtml(inventory.packs[id].refUsed.slice(0, 7))}`).join(' · ')}
     <br/>This report goes stale as packs evolve. Refresh with <code>skillpack map fetch --refresh</code>.
+    Token estimates use chars÷4.
   </footer>
 </body>
 </html>`;

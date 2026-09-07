@@ -3,7 +3,11 @@
  * Edit this file (not logic) when frameworks evolve.
  */
 
-export type PackId = 'superpowers' | 'agentSkills' | 'mattPocock';
+export type PackId =
+  | 'superpowers'
+  | 'agentSkills'
+  | 'mattPocock'
+  | 'pstack';
 
 export interface PackConfig {
   id: PackId;
@@ -12,6 +16,11 @@ export interface PackConfig {
   repo: string;
   defaultBranch: string;
   repoUrl: string;
+  /**
+   * Optional subdirectory inside the repo tarball that contains the pack root.
+   * e.g. pstack lives under `pstack/` inside cursor/plugins.
+   */
+  subPath?: string;
   /** Install the whole pack as primary router */
   installPrimary: {
     claudeCode: string;
@@ -77,9 +86,35 @@ export const PACKS: Record<PackId, PackConfig> = {
       other: `npx skills@latest add mattpocock/skills --skill ${skillName}`,
     }),
   },
+  pstack: {
+    id: 'pstack',
+    displayName: 'pstack',
+    owner: 'cursor',
+    repo: 'plugins',
+    defaultBranch: 'main',
+    repoUrl: 'https://github.com/cursor/plugins',
+    subPath: 'pstack',
+    installPrimary: {
+      claudeCode:
+        'Clone cursor/plugins and copy pstack/skills into ~/.cursor/skills/',
+      other:
+        'npx skills add cursor/plugins --path pstack (or copy pstack/skills manually)',
+    },
+    installSkill: (skillName) => ({
+      claudeCode: `Copy pstack/skills/${skillName} from cursor/plugins into ~/.cursor/skills/`,
+      other: `Copy pstack/skills/${skillName} from cursor/plugins into your skills dir`,
+    }),
+    cherryPickCaveat:
+      'pstack lives under the cursor/plugins monorepo (path pstack/). Prefer skillpack curate for installs.',
+  },
 };
 
-export const PACK_IDS: PackId[] = ['superpowers', 'agentSkills', 'mattPocock'];
+export const PACK_IDS: PackId[] = [
+  'superpowers',
+  'agentSkills',
+  'mattPocock',
+  'pstack',
+];
 
 /**
  * Significant keywords used for description-overlap detection.
@@ -107,10 +142,16 @@ export const OVERLAP_KEYWORDS: string[] = [
   'subagent',
   'code-review',
   'accessibility',
+  'unslop',
+  'implement',
+  'research',
 ];
 
 /** Categories included when parsing Matt Pocock's repo */
-export const MATTpocock_INCLUDED_CATEGORIES = ['engineering', 'productivity'] as const;
+export const MATTpocock_INCLUDED_CATEGORIES = [
+  'engineering',
+  'productivity',
+] as const;
 
 /** Categories explicitly skipped */
 export const MATTpocock_SKIPPED_CATEGORIES = [

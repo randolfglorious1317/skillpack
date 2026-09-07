@@ -4,6 +4,8 @@ import { join, relative } from 'node:path';
 import matter from 'gray-matter';
 
 import type { InvocationMode, SkillEntry } from '../inventory.js';
+import { detectPhase, detectProcessIntensity } from '../tagging.js';
+import { alwaysLoadedTokens, bodyLoadedTokens } from '../tokens.js';
 
 export async function walkFiles(
   dir: string,
@@ -100,6 +102,10 @@ export function parseSkillMd(
     category,
     invocation: detectInvocation(data as Record<string, unknown>, body),
     slashCommand,
+    alwaysTokens: alwaysLoadedTokens(name, description),
+    bodyTokens: bodyLoadedTokens(body),
+    phase: detectPhase(name, description, body),
+    processIntensity: detectProcessIntensity(name, description, body),
   };
 }
 

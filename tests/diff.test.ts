@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeDiff, safeCherryPicks } from '../src/shared/diff.js';
-import type { SkillPackInventory } from '../src/shared/inventory.js';
+import type { SkillEntry, SkillPackInventory } from '../src/shared/inventory.js';
+import { detectPhase, detectProcessIntensity } from '../src/shared/tagging.js';
+import { alwaysLoadedTokens } from '../src/shared/tokens.js';
+
+function enrich(skill: Omit<SkillEntry, 'alwaysTokens' | 'bodyTokens' | 'phase' | 'processIntensity'>): SkillEntry {
+  return {
+    ...skill,
+    alwaysTokens: alwaysLoadedTokens(skill.name, skill.description),
+    bodyTokens: 100,
+    phase: detectPhase(skill.name, skill.description),
+    processIntensity: detectProcessIntensity(skill.name, skill.description),
+  };
+}
 
 function makeInventory(): SkillPackInventory {
   return {
@@ -23,24 +35,24 @@ function makeInventory(): SkillPackInventory {
           },
         ],
         skills: [
-          {
+          enrich({
             name: 'test-driven-development',
             description: 'Enforce TDD before implementation code',
             filePath: 'skills/test-driven-development/SKILL.md',
             invocation: 'auto',
-          },
-          {
+          }),
+          enrich({
             name: 'using-git-worktrees',
             description: 'Create isolated git worktree environments',
             filePath: 'skills/using-git-worktrees/SKILL.md',
             invocation: 'auto',
-          },
-          {
+          }),
+          enrich({
             name: 'unique-superpower',
             description: 'Something only Superpowers has',
             filePath: 'skills/unique-superpower/SKILL.md',
             invocation: 'auto',
-          },
+          }),
         ],
       },
       agentSkills: {
@@ -55,24 +67,24 @@ function makeInventory(): SkillPackInventory {
           { name: 'plan', slashCommand: '/plan', filePath: '.claude/commands/plan.md' },
         ],
         skills: [
-          {
+          enrich({
             name: 'test-driven-development',
             description: 'TDD workflow with human checkpoints — tests are proof',
             filePath: 'skills/test-driven-development/SKILL.md',
             invocation: 'auto',
-          },
-          {
+          }),
+          enrich({
             name: 'architecture-review',
             description: 'Review architecture and fight context decay',
             filePath: 'skills/architecture-review/SKILL.md',
             invocation: 'auto',
-          },
-          {
+          }),
+          enrich({
             name: 'unique-agent',
             description: 'Something only Agent Skills has',
             filePath: 'skills/unique-agent/SKILL.md',
             invocation: 'auto',
-          },
+          }),
         ],
       },
       mattPocock: {
@@ -87,27 +99,46 @@ function makeInventory(): SkillPackInventory {
           { name: 'spec', slashCommand: '/spec', filePath: 'skills/engineering/spec/SKILL.md' },
         ],
         skills: [
-          {
+          enrich({
             name: 'grill-me',
             description: 'Grill the user on requirements until edge cases resolve',
             filePath: 'skills/engineering/grill-me/SKILL.md',
             category: 'engineering',
             invocation: 'user',
-          },
-          {
+          }),
+          enrich({
             name: 'git-worktree',
             description: 'Create a git worktree for isolated work',
             filePath: 'skills/engineering/git-worktree/SKILL.md',
             category: 'engineering',
             invocation: 'user',
-          },
-          {
+          }),
+          enrich({
             name: 'unique-pocock',
             description: 'Something only Pocock has',
             filePath: 'skills/engineering/unique-pocock/SKILL.md',
             category: 'engineering',
             invocation: 'user',
-          },
+          }),
+        ],
+      },
+      pstack: {
+        packId: 'pstack',
+        repoUrl: 'https://github.com/cursor/plugins',
+        refUsed: 'ddd',
+        fetchedAt: '2026-03-01T00:00:00.000Z',
+        hasSessionHook: false,
+        routerStyle: 'none',
+        commands: [
+          { name: 'unslop', slashCommand: '/unslop', filePath: 'skills/unslop/SKILL.md' },
+        ],
+        skills: [
+          enrich({
+            name: 'unslop',
+            description: 'Strip AI slop from writing and code review comments',
+            filePath: 'skills/unslop/SKILL.md',
+            invocation: 'user',
+          }),
         ],
       },
     },

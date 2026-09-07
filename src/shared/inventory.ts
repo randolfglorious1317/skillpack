@@ -4,6 +4,15 @@ import type { PackId } from '../config/packs.js';
 
 export type InvocationMode = 'user' | 'auto' | 'unknown';
 export type RouterStyle = 'aggressive' | 'checkpointed' | 'none';
+export type WorkflowPhase =
+  | 'research'
+  | 'spec'
+  | 'plan'
+  | 'implement'
+  | 'debug'
+  | 'review'
+  | 'docs';
+export type ProcessIntensity = 'light' | 'interactive' | 'heavy-process';
 
 export interface SkillEntry {
   name: string;
@@ -13,6 +22,14 @@ export interface SkillEntry {
   invocation: InvocationMode;
   /** Flat-install slash command if discoverable, e.g. "/tdd" */
   slashCommand?: string;
+  /** Estimated tokens from name+description (always loaded into skill catalogs) */
+  alwaysTokens: number;
+  /** Estimated tokens from SKILL.md body (loaded on invocation) */
+  bodyTokens: number;
+  /** Workflow phase this skill primarily serves */
+  phase: WorkflowPhase;
+  /** How much interactive / process overhead the skill adds */
+  processIntensity: ProcessIntensity;
 }
 
 export interface CommandEntry {
@@ -36,15 +53,27 @@ export interface PackSnapshot {
 export interface SkillPackInventory {
   generatedAt: string;
   source: 'bundled' | 'cache' | 'live';
-  packs: {
-    superpowers: PackSnapshot;
-    agentSkills: PackSnapshot;
-    mattPocock: PackSnapshot;
-  };
+  packs: Record<PackId, PackSnapshot>;
+  /** Optional custom packs fetched via `map fetch --repo` */
+  customPacks?: Record<string, PackSnapshot>;
 }
 
 const InvocationSchema = z.enum(['user', 'auto', 'unknown']);
 const RouterStyleSchema = z.enum(['aggressive', 'checkpointed', 'none']);
+const PhaseSchema = z.enum([
+  'research',
+  'spec',
+  'plan',
+  'implement',
+  'debug',
+  'review',
+  'docs',
+]);
+const ProcessIntensitySchema = z.enum([
+  'light',
+  'interactive',
+  'heavy-process',
+]);
 
 const SkillEntrySchema = z.object({
   name: z.string().min(1),
@@ -53,6 +82,10 @@ const SkillEntrySchema = z.object({
   category: z.string().optional(),
   invocation: InvocationSchema,
   slashCommand: z.string().optional(),
+  alwaysTokens: z.number().int().nonnegative(),
+  bodyTokens: z.number().int().nonnegative(),
+  phase: PhaseSchema,
+  processIntensity: ProcessIntensitySchema,
 });
 
 const CommandEntrySchema = z.object({
@@ -61,8 +94,15 @@ const CommandEntrySchema = z.object({
   filePath: z.string(),
 });
 
+const PackIdSchema = z.enum([
+  'superpowers',
+  'agentSkills',
+  'mattPocock',
+  'pstack',
+]);
+
 const PackSnapshotSchema = z.object({
-  packId: z.enum(['superpowers', 'agentSkills', 'mattPocock']),
+  packId: PackIdSchema,
   repoUrl: z.string().url(),
   refUsed: z.string().min(1),
   fetchedAt: z.string(),
@@ -79,7 +119,9 @@ export const SkillPackInventorySchema = z.object({
     superpowers: PackSnapshotSchema,
     agentSkills: PackSnapshotSchema,
     mattPocock: PackSnapshotSchema,
+    pstack: PackSnapshotSchema,
   }),
+  customPacks: z.record(PackSnapshotSchema).optional(),
 });
 
 export function parseInventory(raw: unknown): SkillPackInventory {
@@ -87,9 +129,8 @@ export function parseInventory(raw: unknown): SkillPackInventory {
 }
 
 export function skillCount(inventory: SkillPackInventory): number {
-  return (
-    inventory.packs.superpowers.skills.length +
-    inventory.packs.agentSkills.skills.length +
-    inventory.packs.mattPocock.skills.length
+  return Object.values(inventory.packs).reduce(
+    (n, p) => n + p.skills.length,
+    0,
   );
 }

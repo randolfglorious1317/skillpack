@@ -10,9 +10,12 @@ import * as tar from 'tar';
 import { PACKS, type PackId } from '../config/packs.js';
 import {
   parseAgentSkills,
+  parseGenericSkills,
   parseMattPocock,
+  parsePstack,
   parseSuperpowers,
 } from './adapters/index.js';
+import { pathExists } from './adapters/common.js';
 import type { PackSnapshot, SkillPackInventory } from './inventory.js';
 
 export interface FetchProgress {
@@ -96,6 +99,21 @@ export async function downloadTarball(
   return join(extractDir, kids[0]);
 }
 
+/** Apply pack subPath (e.g. pstack inside cursor/plugins). */
+export async function resolvePackRoot(
+  extractedRoot: string,
+  subPath?: string,
+): Promise<string> {
+  if (!subPath) return extractedRoot;
+  const nested = join(extractedRoot, ...subPath.split('/').filter(Boolean));
+  if (!(await pathExists(nested))) {
+    throw new Error(
+      `Pack subPath "${subPath}" not found under extracted tarball root`,
+    );
+  }
+  return nested;
+}
+
 async function parsePack(
   packId: PackId,
   rootDir: string,
@@ -110,6 +128,8 @@ async function parsePack(
       return parseAgentSkills(rootDir, config, refUsed, fetchedAt);
     case 'mattPocock':
       return parseMattPocock(rootDir, config, refUsed, fetchedAt);
+    case 'pstack':
+      return parsePstack(rootDir, config, refUsed, fetchedAt);
   }
 }
 
@@ -149,12 +169,13 @@ export async function fetchAllPacks(
       );
       const packWork = join(workDir, packId);
       await mkdir(packWork, { recursive: true });
-      const root = await downloadTarballFn(
+      const extracted = await downloadTarballFn(
         config.owner,
         config.repo,
         sha,
         packWork,
       );
+      const root = await resolvePackRoot(extracted, config.subPath);
       onProgress(`Parsing ${config.displayName}…`);
       packs[packId] = await parsePack(packId, root, sha, fetchedAt);
       onProgress(
@@ -167,6 +188,80 @@ export async function fetchAllPacks(
       source: 'live',
       packs,
     };
+  } finally {
+    if (!options.workDir) {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+}
+
+export interface RepoSpec {
+  owner: string;
+  repo: string;
+  /** Optional path inside the repo */
+  subPath?: string;
+  branch?: string;
+}
+
+/** Parse `owner/repo` or `owner/repo/path/to/pack`. */
+export function parseRepoSpec(spec: string): RepoSpec {
+  const parts = spec.split('/').filter(Boolean);
+  if (parts.length < 2) {
+    throw new Error(
+      `Invalid --repo "${spec}". Expected owner/repo or owner/repo/sub/path`,
+    );
+  }
+  const owner = parts[0]!;
+  const repo = parts[1]!;
+  const subPath =
+    parts.length > 2 ? parts.slice(2).join('/') : undefined;
+  return { owner, repo, subPath };
+}
+
+/**
+ * Fetch and parse an arbitrary GitHub repo containing SKILL.md files.
+ * Stored as a custom pack key `${owner}/${repo}` (with optional path suffix).
+ */
+export async function fetchCustomRepo(
+  spec: string,
+  options: FetchOptions = {},
+): Promise<PackSnapshot> {
+  const {
+    onProgress = () => undefined,
+    resolveShaFn = resolveSha,
+    downloadTarballFn = downloadTarball,
+  } = options;
+
+  const parsed = parseRepoSpec(spec);
+  const branch = parsed.branch ?? 'main';
+  const workDir =
+    options.workDir ?? (await mkdtemp(join(tmpdir(), 'skillpack-custom-')));
+  const fetchedAt = new Date().toISOString();
+
+  try {
+    onProgress(`Resolving ${parsed.owner}/${parsed.repo}@${branch}…`);
+    const sha = await resolveShaFn(parsed.owner, parsed.repo, branch);
+    onProgress(`Downloading @ ${sha.slice(0, 7)}…`);
+    const extracted = await downloadTarballFn(
+      parsed.owner,
+      parsed.repo,
+      sha,
+      workDir,
+    );
+    const root = await resolvePackRoot(extracted, parsed.subPath);
+    onProgress('Parsing SKILL.md files…');
+    const packKey = parsed.subPath
+      ? `${parsed.owner}/${parsed.repo}/${parsed.subPath}`
+      : `${parsed.owner}/${parsed.repo}`;
+    // Use mattPocock as a stand-in PackId for schema; callers store under customPacks
+    const snap = await parseGenericSkills(root, {
+      packId: 'mattPocock',
+      repoUrl: `https://github.com/${parsed.owner}/${parsed.repo}`,
+      refUsed: sha,
+      fetchedAt,
+    });
+    // Preserve identity in repoUrl query-ish path note via ref; custom key is separate
+    return { ...snap, repoUrl: `https://github.com/${packKey}` };
   } finally {
     if (!options.workDir) {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
